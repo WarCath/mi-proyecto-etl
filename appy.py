@@ -4,6 +4,7 @@ import unicodedata
 from datetime import datetime
 import mysql.connector
 import pandas as pd
+import streamlit as st
 
 # CONEXIÓN A BASE DE DATOS
 DB_CONFIG = {
@@ -99,7 +100,15 @@ def parsear_direccion(direccion_completa):
 
 # PROCESOS PRINCIPALES DE CARGA (ETL)
 def conectar_db():
-    return mysql.connector.connect(**DB_CONFIG)
+    return mysql.connector.connect(
+        host=st.secrets["mysql"]["host"],
+        port=st.secrets["mysql"]["port"],
+        user=st.secrets["mysql"]["user"],
+        password=st.secrets["mysql"]["password"],
+        database=st.secrets["mysql"]["database"],
+        # Forzamos el uso de SSL nativo sin requerir archivo ca.pem local
+        ssl_mode="REQUIRED" 
+    )
 
 
 def ejecutar_etl():
@@ -127,8 +136,7 @@ def ejecutar_etl():
         no_encontrados_api = 0
 
         for comuna in comunas_limpias:
-            # Consolidación Simulada de la API Oficial (Región e Habitantes)
-            # Aquí se puede reemplazar por un llamado real via requests a la API Chilena
+            
             region_oficial = "Región Metropolitana" 
             habitantes_oficial = 50000  
             consolidados += 1
