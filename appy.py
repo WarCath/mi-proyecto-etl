@@ -106,8 +106,7 @@ def conectar_db():
         user=st.secrets["mysql"]["user"],
         password=st.secrets["mysql"]["password"],
         database=st.secrets["mysql"]["database"],
-        # Forzamos el uso de SSL nativo sin requerir archivo ca.pem local
-        ssl_mode="REQUIRED" 
+        ssl_disabled=False
     )
 
 
