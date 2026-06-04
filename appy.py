@@ -8,11 +8,14 @@ import streamlit as st
 
 # CONEXIÓN A BASE DE DATOS
 DB_CONFIG = {
-    "host": "localhost",
-    "user": "root",
-    "password": "MySQL2026",
-    "database": "evaluacion_etl",
+    "host": "mysql-2a3842d4-thomleviqueo-etl.i.aivencloud.com",
+    "user": "avnadmin",
+    "password": "AVNS_ylTTCWGdkQ2aGKgN4u8",
+    "database": "defaultdb",
+    "port": 15008,
+    "ssl_disabled": False
 }
+
 ANIO_ACTUAL = 2026
 FECHA_HOY = datetime.now()
 
@@ -102,10 +105,10 @@ def parsear_direccion(direccion_completa):
 def conectar_db():
     return mysql.connector.connect(
         host=st.secrets["mysql"]["host"],
-        port=st.secrets["mysql"]["port"],
         user=st.secrets["mysql"]["user"],
         password=st.secrets["mysql"]["password"],
         database=st.secrets["mysql"]["database"],
+        port=st.secrets["mysql"]["port"],
         ssl_disabled=False
     )
 
@@ -217,7 +220,7 @@ def ejecutar_etl():
         print("   [OK] Famosos procesados e insertados con éxito.")
 
     # PROCESAMIENTO DE LUGARES (Parte 2 Relacional)
-    
+
     if os.path.exists("LUGARES-3.TXT"):
         print("-> Procesando Lugares Históricos (Estructura Relacional)...")
         
