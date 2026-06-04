@@ -217,58 +217,68 @@ def ejecutar_etl():
         print("   [OK] Famosos procesados e insertados con éxito.")
 
     # PROCESAMIENTO DE LUGARES (Parte 2 Relacional)
-
+    
     if os.path.exists("LUGARES-3.TXT"):
         print("-> Procesando Lugares Históricos (Estructura Relacional)...")
-        df_lugares = pd.read_csv("LUGARES-3.TXT", sep=";", encoding="utf-8")
+        
+        # Intentar leer el archivo probando configuraciones robustas de idioma
+        try:
+            # utf-8-sig quita caracteres ocultos automáticos si el archivo viene de Excel
+            df_lugares = pd.read_csv("LUGARES-3.TXT", sep=";", encoding="utf-8-sig")
+        except UnicodeDecodeError:
+            # Si falla UTF-8 por las tildes, intentamos con Latin-1 (Español Windows)
+            df_lugares = pd.read_csv("LUGARES-3.TXT", sep=";", encoding="latin-1")
+        except pd.errors.EmptyDataError:
+            # Si el archivo está completamente vacío en el servidor, evitamos que rompa el script
+            print("   [ERROR] El archivo LUGARES-3.TXT está totalmente vacío en GitHub.")
+            df_lugares = pd.DataFrame()
 
-        # Eliminar registros duplicados directos basados en el Nombre del lugar
-        df_lugares = df_lugares.drop_duplicates(subset=["Nombre del lugar"])
+        # Solo si el DataFrame logró cargar datos, ejecutamos el proceso
+        if not df_lugares.empty:
+            # Eliminar registros duplicados directos basados en el Nombre del lugar
+            df_lugares = df_lugares.drop_duplicates(subset=["Nombre del lugar"])
 
-        for _, row in df_lugares.iterrows():
-            nombre_lugar = str(row["Nombre del lugar"]).strip()
-            direccion_completa = str(row["Dirección Completa"]).strip()
-            georeferencia = str(row["Georeferencia"]).strip()
+            for _, row in df_lugares.iterrows():
+                nombre_lugar = str(row["Nombre del lugar"]).strip()
+                direccion_completa = str(row["Dirección Completa"]).strip()
+                georeferencia = str(row["Georeferencia"]).strip()
 
-            if (
-                nombre_lugar == "Nombre del lugar"
-            ):  # Evitar registrar cabeceras accidentales
-                continue
+                if nombre_lugar == "Nombre del lugar":  # Evitar registrar cabeceras accidentales
+                    continue
 
-            try:
-                # 1. Insertar en tabla Principal: lugares
-                cursor.execute(
-                    "INSERT IGNORE INTO lugares (nombre) VALUES (%s)",
-                    (nombre_lugar,),
-                )
-                cursor.execute(
-                    "SELECT id FROM lugares WHERE nombre = %s", (nombre_lugar,)
-                )
-                lugar_id = cursor.fetchone()[0]
+                try:
+                    # 1. Insertar en tabla Principal: lugares
+                    cursor.execute(
+                        "INSERT IGNORE INTO lugares (nombre) VALUES (%s)",
+                        (nombre_lugar,),
+                    )
+                    cursor.execute(
+                        "SELECT id FROM lugares WHERE nombre = %s", (nombre_lugar,)
+                    )
+                    lugar_id = cursor.fetchone()[0]
 
-                # 2. Parsear e Insertar en tabla: georeferencias
-                lat, lon = [float(coord.strip()) for coord in georeferencia.split(",")]
-                cursor.execute(
-                    "INSERT IGNORE INTO georeferencias (lugar_id, latitud, longitud) VALUES (%s, %s, %s)",
-                    (lugar_id, lat, lon),
-                )
+                    # 2. Parsear e Insertar en tabla: georeferencias
+                    lat, lon = [float(coord.strip()) for coord in georeferencia.split(",")]
+                    cursor.execute(
+                        "INSERT IGNORE INTO georeferencias (lugar_id, latitud, longitud) VALUES (%s, %s, %s)",
+                        (lugar_id, lat, lon),
+                    )
 
-                # 3. Parsear e Insertar en tabla: direcciones
-                nom_calle, num_calle, ciudad_est, pais = parsear_direccion(
-                    direccion_completa
-                )
-                cursor.execute(
-                    """INSERT IGNORE INTO direcciones 
-                    (lugar_id, nombre_calle, numero_calle, ciudad_estado_provincia, pais) 
-                    VALUES (%s, %s, %s, %s, %s)""",
-                    (lugar_id, nom_calle, num_calle, ciudad_est, pais),
-                )
+                    # 3. Parsear e Insertar en tabla: direcciones
+                    nom_calle, num_calle, ciudad_est, pais = parsear_direccion(
+                        direccion_completa
+                    )
+                    cursor.execute(
+                        """INSERT IGNORE INTO direcciones 
+                        (lugar_id, nombre_calle, numero_calle, ciudad_estado_provincia, pais) 
+                        VALUES (%s, %s, %s, %s, %s)""",
+                        (lugar_id, nom_calle, num_calle, ciudad_est, pais),
+                    )
 
-            except Exception as e:
-                print(f"Error procesando lugar {nombre_lugar}: {e}")
+                except Exception as e:
+                    print(f"Error procesando lugar {nombre_lugar}: {e}")
 
-        print("   [OK] Lugares, Georeferencias y Direcciones mapeadas correctamente.")
-
+            print("   [OK] Lugares, Georeferencias y Direcciones mapeadas correctamente.")
     # Confirmar cambios en la Base de Datos
     conn.commit()
     cursor.close()
