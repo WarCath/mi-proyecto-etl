@@ -288,31 +288,78 @@ def ejecutar_etl():
     conn.close()
     print("\n¡Proceso ETL ejecutado con éxito! Revisa tu MySQL Workbench.")
 
-# INTERFAZ GRÁFICA DE STREAMLIT (Al final de tu archivo appy.py)
+# =====================================================================
+# INTERFAZ GRÁFICA DE STREAMLIT CON REPORTES EN TIEMPO REAL
+# =====================================================================
 
 st.set_page_config(page_title="Dashboard ETL", page_icon="🚀", layout="centered")
+
 st.title("🚀 Panel de Control - Proyecto ETL")
 st.markdown("""
 Este panel interactivo permite ejecutar el proceso de Extracción, Transformación y Carga (ETL) 
-hacia la base de datos en la nube.
+y visualizar los resultados de la normalización guardados en la base de datos.
 """)
 
-# Crear un botón para que el proceso NO corra solo al abrir la página
 if st.button("🔄 Iniciar Proceso ETL Ahora", type="primary"):
     
-    # st.status crea una caja animada ideal para mostrar el progreso en la web
     with st.status("Ejecutando el pipeline de datos...", expanded=True) as status:
-        st.write("🔌 Conectando de forma segura a la base de datos de Aiven...")
+        st.write("🔌 Conectando a la base de datos de Aiven...")
         
         try:
-            # Ejecutamos tu función principal
+            # 1. Se ejecuta tu proceso original que procesa los archivos e inserta los logs
             ejecutar_etl() 
-            status.update(label="¡Proceso ETL Completado con Éxito! 🎉", state="complete")
-            st.success("Los datos de Comunas, Famosos y Lugares se han cargado correctamente en la base de datos.")
             
+            status.update(label="¡Proceso ETL Completado con Éxito! 🎉", state="complete")
+            st.success("Los datos de Comunas, Famosos y Lugares se han procesado correctamente.")
+            
+            # =================================================================
+            # SECCIÓN NUEVA: MOSTRAR RESULTADOS DE LA NORMALIZACIÓN
+            # =================================================================
+            st.markdown("---")
+            st.markdown("### 📊 Reporte Oficial de la Normalización")
+            
+            # Conectamos para leer los últimos 3 logs generados (uno por cada archivo)
+            conn = conectar_db()
+            query = "SELECT * FROM etl_log ORDER BY id DESC LIMIT 3"
+            
+            # Usamos Pandas para leer la consulta SQL directamente a un DataFrame
+            df_logs = pd.read_sql(query, conn)
+            conn.close()
+            
+            if not df_logs.empty:
+                # Vista 1: Tabla interactiva completa
+                st.markdown("#### 🔍 Vista General (Tabla de Logs)")
+                st.dataframe(df_logs, use_container_width=True)
+                
+                # Vista 2: Tarjetas visuales de métricas individuales
+                st.markdown("#### 🎯 Resumen Desglosado por Proceso")
+                
+                # Invertimos el orden para que se muestren en el orden cronológico del proceso
+                for _, row in df_logs.iloc[::-1].iterrows():
+                    with st.expander(f"📋 Proceso: {row['proceso']}", expanded=True):
+                        col1, col2, col3 = st.columns(3)
+                        
+                        # Usamos .get() para evitar errores si tus columnas se llaman levemente diferente
+                        leidos = row.get('registros_leidos', 0)
+                        procesados = row.get('registros_procesados', 0)
+                        
+                        # Soporta tanto 'duplicados_eliminados' como 'registros_duplicados_eliminados'
+                        duplicados = row.get('duplicados_eliminados', row.get('registros_duplicados_eliminados', 0))
+                        
+                        # Pintar los indicadores visuales
+                        col1.metric("Registros Leídos 📂", f"{leidos} filas")
+                        col2.metric("Insertados Ok ✅", f"{procesados} filas")
+                        col3.metric("Duplicados Limpiados 🗑️", f"{duplicados} filas")
+                        
+                        # Si el proceso registró alertas o errores en el texto, poner una advertencia
+                        if row.get('errores'):
+                            st.warning(f"⚠️ Alertas reportadas: {row['errores']}")
+            else:
+                st.warning("El proceso terminó bien, pero no se encontraron registros recientes en la tabla `etl_log`.")
+                
         except Exception as e:
             status.update(label="💥 El proceso ha fallado", state="error")
             st.error(f"Ocurrió un error inesperado durante la ejecución: {e}")
             
 else:
-    st.info("💡 Haz clic en el botón de arriba para iniciar la migración de datos.")
+    st.info("💡 Haz clic en el botón de arriba para iniciar la migración de datos y desplegar las métricas.")
