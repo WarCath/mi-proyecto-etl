@@ -309,10 +309,9 @@ if st.button("🔄 Iniciar Proceso ETL Ahora", type="primary"):
             
             status.update(label="¡Proceso ETL Completado con Éxito! 🎉", state="complete")
             st.success("Los datos se han extraído, normalizado y cargado correctamente.")
-            
-            # =================================================================
+           
             # SECCIÓN NUEVA: EXTRACCIÓN Y DESPLIEGUE DE TABLAS COMPLETAS
-            # =================================================================
+
             st.markdown("---")
             st.markdown("### 📊 Visor de Tablas Normalizadas")
             
@@ -324,14 +323,14 @@ if st.button("🔄 Iniciar Proceso ETL Ahora", type="primary"):
             
             # Consulta 2: Famosos con Edades Calculadas
             df_famosos = pd.read_sql("SELECT * FROM famosos ORDER BY id DESC", conn)
-            
+
             # Consulta 3: Cruce completo de Lugares + Georreferencias + Direcciones
-            # Nota: Adaptado dinámicamente si tus llaves usan 'lugar_id' o 'id_lugar'
+
             try:
                 query_lugares = """
                     SELECT 
                         l.id AS "ID",
-                        l.nombre_lugar AS "Nombre del Lugar",
+                        l.nombre AS "Nombre del Lugar",
                         g.latitud AS "Latitud",
                         g.longitud AS "Longitud",
                         d.nombre_calle AS "Calle",
@@ -347,7 +346,7 @@ if st.button("🔄 Iniciar Proceso ETL Ahora", type="primary"):
             except Exception:
                 # Alternativa por si las FK en tu BD se llaman 'id_lugar' en vez de 'lugar_id'
                 query_lugares = """
-                    SELECT l.id AS "ID", l.nombre_lugar AS "Nombre del Lugar", 
+                    SELECT l.id AS "ID", l.nombre AS "Nombre del Lugar", 
                            g.latitud AS "Latitud", g.longitud AS "Longitud",
                            d.nombre_calle AS "Calle", d.numero_calle AS "Número", 
                            d.ciudad_estado_provincia AS "Ciudad/Estado", d.pais AS "País"
@@ -378,7 +377,7 @@ if st.button("🔄 Iniciar Proceso ETL Ahora", type="primary"):
                 st.markdown("Datos divididos relacionalmente en tres tablas del modelo entidad-relación.")
                 st.dataframe(df_lugares, use_container_width=True)
                 
-                # ✨ BONUS EXTRA DE CALIDAD: Mapa interactivo automático
+                
                 # Si hay datos de coordenadas válidos, Streamlit los dibuja en un mapa real
                 df_mapa = df_lugares[['Latitud', 'Longitud']].dropna()
                 if not df_mapa.empty:
