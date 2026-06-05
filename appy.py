@@ -288,6 +288,31 @@ def ejecutar_etl():
     conn.close()
     print("\n¡Proceso ETL ejecutado con éxito! Revisa tu MySQL Workbench.")
 
+# INTERFAZ GRÁFICA DE STREAMLIT (Al final de tu archivo appy.py)
 
-if __name__ == "__main__":
-    ejecutar_etl()
+st.set_page_config(page_title="Dashboard ETL", page_icon="🚀", layout="centered")
+st.title("🚀 Panel de Control - Proyecto ETL")
+st.markdown("""
+Este panel interactivo permite ejecutar el proceso de Extracción, Transformación y Carga (ETL) 
+hacia la base de datos en la nube.
+""")
+
+# Crear un botón para que el proceso NO corra solo al abrir la página
+if st.button("🔄 Iniciar Proceso ETL Ahora", type="primary"):
+    
+    # st.status crea una caja animada ideal para mostrar el progreso en la web
+    with st.status("Ejecutando el pipeline de datos...", expanded=True) as status:
+        st.write("🔌 Conectando de forma segura a la base de datos de Aiven...")
+        
+        try:
+            # Ejecutamos tu función principal
+            ejecutar_etl() 
+            status.update(label="¡Proceso ETL Completado con Éxito! 🎉", state="complete")
+            st.success("Los datos de Comunas, Famosos y Lugares se han cargado correctamente en la base de datos.")
+            
+        except Exception as e:
+            status.update(label="💥 El proceso ha fallado", state="error")
+            st.error(f"Ocurrió un error inesperado durante la ejecución: {e}")
+            
+else:
+    st.info("💡 Haz clic en el botón de arriba para iniciar la migración de datos.")
