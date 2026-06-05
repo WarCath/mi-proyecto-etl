@@ -288,78 +288,107 @@ def ejecutar_etl():
     conn.close()
     print("\n¡Proceso ETL ejecutado con éxito! Revisa tu MySQL Workbench.")
 
-# =====================================================================
-# INTERFAZ GRÁFICA DE STREAMLIT CON REPORTES EN TIEMPO REAL
-# =====================================================================
+# INTERFAZ GRÁFICA DE STREAMLIT CON VISTA DE DATOS COMPLETOS
 
-st.set_page_config(page_title="Dashboard ETL", page_icon="🚀", layout="centered")
+st.set_page_config(page_title="Dashboard ETL", page_icon="🚀", layout="wide")
 
 st.title("🚀 Panel de Control - Proyecto ETL")
 st.markdown("""
 Este panel interactivo permite ejecutar el proceso de Extracción, Transformación y Carga (ETL) 
-y visualizar los resultados de la normalización guardados en la base de datos.
+y explorar en tiempo real los registros completos almacenados en la base de datos de Aiven.
 """)
 
 if st.button("🔄 Iniciar Proceso ETL Ahora", type="primary"):
     
     with st.status("Ejecutando el pipeline de datos...", expanded=True) as status:
-        st.write("🔌 Conectando a la base de datos de Aiven...")
+        st.write("🔌 Conectando a la base de datos en la nube...")
         
         try:
-            # 1. Se ejecuta tu proceso original que procesa los archivos e inserta los logs
+            # 1. Se ejecuta tu lógica original que lee los archivos y llena la BD
             ejecutar_etl() 
             
             status.update(label="¡Proceso ETL Completado con Éxito! 🎉", state="complete")
-            st.success("Los datos de Comunas, Famosos y Lugares se han procesado correctamente.")
+            st.success("Los datos se han extraído, normalizado y cargado correctamente.")
             
             # =================================================================
-            # SECCIÓN NUEVA: MOSTRAR RESULTADOS DE LA NORMALIZACIÓN
+            # SECCIÓN NUEVA: EXTRACCIÓN Y DESPLIEGUE DE TABLAS COMPLETAS
             # =================================================================
             st.markdown("---")
-            st.markdown("### 📊 Reporte Oficial de la Normalización")
+            st.markdown("### 📊 Visor de Tablas Normalizadas")
             
-            # Conectamos para leer los últimos 3 logs generados (uno por cada archivo)
+            # Abrimos una conexión rápida para leer los resultados
             conn = conectar_db()
-            query = "SELECT * FROM etl_log ORDER BY id DESC LIMIT 3"
             
-            # Usamos Pandas para leer la consulta SQL directamente a un DataFrame
-            df_logs = pd.read_sql(query, conn)
+            # Consulta 1: Comunas Normalizadas
+            df_comunas = pd.read_sql("SELECT * FROM comunas_norm ORDER BY id DESC", conn)
+            
+            # Consulta 2: Famosos con Edades Calculadas
+            df_famosos = pd.read_sql("SELECT * FROM famosos ORDER BY id DESC", conn)
+            
+            # Consulta 3: Cruce completo de Lugares + Georreferencias + Direcciones
+            # Nota: Adaptado dinámicamente si tus llaves usan 'lugar_id' o 'id_lugar'
+            try:
+                query_lugares = """
+                    SELECT 
+                        l.id AS "ID",
+                        l.nombre_lugar AS "Nombre del Lugar",
+                        g.latitud AS "Latitud",
+                        g.longitud AS "Longitud",
+                        d.nombre_calle AS "Calle",
+                        d.numero_calle AS "Número",
+                        d.ciudad_estado_provincia AS "Ciudad/Estado",
+                        d.pais AS "País"
+                    FROM lugares l
+                    LEFT JOIN georeferencias g ON l.id = g.lugar_id
+                    LEFT JOIN direcciones d ON l.id = d.lugar_id
+                    ORDER BY l.id DESC
+                """
+                df_lugares = pd.read_sql(query_lugares, conn)
+            except Exception:
+                # Alternativa por si las FK en tu BD se llaman 'id_lugar' en vez de 'lugar_id'
+                query_lugares = """
+                    SELECT l.id AS "ID", l.nombre_lugar AS "Nombre del Lugar", 
+                           g.latitud AS "Latitud", g.longitud AS "Longitud",
+                           d.nombre_calle AS "Calle", d.numero_calle AS "Número", 
+                           d.ciudad_estado_provincia AS "Ciudad/Estado", d.pais AS "País"
+                    FROM lugares l
+                    LEFT JOIN georeferencias g ON l.id = g.id_lugar
+                    LEFT JOIN direcciones d ON l.id = d.id_lugar
+                    ORDER BY l.id DESC
+                """
+                df_lugares = pd.read_sql(query_lugares, conn)
+                
             conn.close()
             
-            if not df_logs.empty:
-                # Vista 1: Tabla interactiva completa
-                st.markdown("#### 🔍 Vista General (Tabla de Logs)")
-                st.dataframe(df_logs, use_container_width=True)
+            # Creamos tres pestañas interactivas en la interfaz web
+            tab1, tab2, tab3 = st.tabs(["🏙️ Comunas ", "👥 Famosos ", "🗺️ Lugares Históricos"])
+            
+            with tab1:
+                st.subheader(f"🏙️ Tabla: comunas_norm ({len(df_comunas)} registros)")
+                st.markdown("Muestra los nombres de las comunas corregidos, sin acentos ni caracteres extraños.")
+                st.dataframe(df_comunas, use_container_width=True)
                 
-                # Vista 2: Tarjetas visuales de métricas individuales
-                st.markdown("#### 🎯 Resumen Desglosado por Proceso")
+            with tab2:
+                st.subheader(f"👥 Tabla: famosos ({len(df_famosos)} registros)")
+                st.markdown("Lista de celebridades con formatos de fecha homologados y el cálculo dinámico de su edad.")
+                st.dataframe(df_famosos, use_container_width=True)
                 
-                # Invertimos el orden para que se muestren en el orden cronológico del proceso
-                for _, row in df_logs.iloc[::-1].iterrows():
-                    with st.expander(f"📋 Proceso: {row['proceso']}", expanded=True):
-                        col1, col2, col3 = st.columns(3)
-                        
-                        # Usamos .get() para evitar errores si tus columnas se llaman levemente diferente
-                        leidos = row.get('registros_leidos', 0)
-                        procesados = row.get('registros_procesados', 0)
-                        
-                        # Soporta tanto 'duplicados_eliminados' como 'registros_duplicados_eliminados'
-                        duplicados = row.get('duplicados_eliminados', row.get('registros_duplicados_eliminados', 0))
-                        
-                        # Pintar los indicadores visuales
-                        col1.metric("Registros Leídos 📂", f"{leidos} filas")
-                        col2.metric("Insertados Ok ✅", f"{procesados} filas")
-                        col3.metric("Duplicados Limpiados 🗑️", f"{duplicados} filas")
-                        
-                        # Si el proceso registró alertas o errores en el texto, poner una advertencia
-                        if row.get('errores'):
-                            st.warning(f"⚠️ Alertas reportadas: {row['errores']}")
-            else:
-                st.warning("El proceso terminó bien, pero no se encontraron registros recientes en la tabla `etl_log`.")
+            with tab3:
+                st.subheader(f"🗺️ Vista Consolidada: lugares + relaciones ({len(df_lugares)} registros)")
+                st.markdown("Datos divididos relacionalmente en tres tablas del modelo entidad-relación.")
+                st.dataframe(df_lugares, use_container_width=True)
                 
+                # ✨ BONUS EXTRA DE CALIDAD: Mapa interactivo automático
+                # Si hay datos de coordenadas válidos, Streamlit los dibuja en un mapa real
+                df_mapa = df_lugares[['Latitud', 'Longitud']].dropna()
+                if not df_mapa.empty:
+                    st.markdown("#### 📍 Ubicaciones Mapeadas en el Globo")
+                    df_mapa = df_mapa.rename(columns={"Latitud": "latitude", "Longitud": "longitude"})
+                    st.map(df_mapa)
+
         except Exception as e:
             status.update(label="💥 El proceso ha fallado", state="error")
-            st.error(f"Ocurrió un error inesperado durante la ejecución: {e}")
+            st.error(f"Ocurrió un error inesperado al consultar los datos: {e}")
             
 else:
-    st.info("💡 Haz clic en el botón de arriba para iniciar la migración de datos y desplegar las métricas.")
+    st.info("💡 Haz clic en el botón de arriba para iniciar el pipeline. Al finalizar, se cargarán todas las tablas interactivas con tus datos normalizados.")
